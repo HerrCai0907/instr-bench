@@ -1,3 +1,4 @@
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <spdlog/spdlog.h>
@@ -93,7 +94,7 @@ void ib::llvm::init() {
   spdlog::info("LLVM initialized successfully!");
 }
 
-ib::MachineCode ib::llvm::compile(const std::string &asmStr) {
+std::unique_ptr<ib::MachineCode> ib::llvm::compile(const std::string &asmStr) {
   const Target *target = getTarget();
   Triple triple{sys::getDefaultTargetTriple()};
 
@@ -160,5 +161,9 @@ ib::MachineCode ib::llvm::compile(const std::string &asmStr) {
 
   int Res = asm_parser->Run(true);
 
-  return ib::MachineCode{ib_streamer->code_.begin(), ib_streamer->code_.end()};
+  std::unique_ptr<ib::MachineCode> ret{new ib::MachineCode()};
+  ret->resize(ib_streamer->code_.size());
+  std::memcpy(ret->data(), ib_streamer->code_.data(),
+              ib_streamer->code_.size());
+  return ret;
 }

@@ -8,6 +8,6 @@ namespace ib::llvm {
 
 void init();
 
-MachineCode compile(const std::string &asmStr);
+std::unique_ptr<ib::MachineCode> compile(const std::string &asmStr);
 
 } // namespace ib::llvm
