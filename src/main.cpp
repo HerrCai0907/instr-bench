@@ -48,22 +48,45 @@ int main() {
   }};
 
   add_bench_target(R"(
-    ldr     xzr, [x0]
+    ldr     x1,  [x0]
     str     x1,  [x0]
-  )",
+    ldr     x1,  [x0]
+    str     x1,  [x0]
+    ldr     x1,  [x0]
+    str     x1,  [x0]
+    ldr     x1,  [x0]
+    str     x1,  [x0]
+    ldr     x1,  [x0]
+    str     x1,  [x0]
+    )",
                    machine_code_queue);
+
   add_bench_target(R"(
+    ldr     x1,  [x0]
     str     x1,  [x0]
-  )",
+    ldr     x2,  [x0]
+    str     x2,  [x0]
+    ldr     x3,  [x0]
+    str     x3,  [x0]
+    ldr     x4,  [x0]
+    str     x4,  [x0]
+    ldr     x5,  [x0]
+    str     x5,  [x0]
+    )",
                    machine_code_queue);
+
   add_bench_target(R"(
+    ldr     x1,  [x0]
+    ldr     x2,  [x0]
+    ldr     x3,  [x0]
+    ldr     x4,  [x0]
+    ldr     x5,  [x0]
     str     x1,  [x0]
-  )",
-                   machine_code_queue);
-  add_bench_target(R"(
-    ldr     xzr, [x0]
-    str     x1,  [x0]
-  )",
+    str     x2,  [x0]
+    str     x3,  [x0]
+    str     x4,  [x0]
+    str     x5,  [x0]
+    )",
                    machine_code_queue);
 
   execute_thread.join();
