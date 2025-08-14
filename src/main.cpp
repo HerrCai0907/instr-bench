@@ -67,6 +67,17 @@ int main() {
     ldr x1, [x8]
   )",
                    machine_code_queue);
+  add_bench_target(R"(
+    add x8, x0, #10
+    ldr x1, [x8]
+  )",
+                   machine_code_queue);
+  add_bench_target(R"(
+    mov x8, x0
+    add x8, x8, #10
+    ldr x1, [x8]
+  )",
+                   machine_code_queue);
 
   // send control group, start execute
   add_bench_target(ib::UUIDUtils::control_group_uuid, R"()",

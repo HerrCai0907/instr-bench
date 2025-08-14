@@ -1,11 +1,14 @@
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
+#include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <random>
 #include <spdlog/spdlog.h>
 #include <sys/mman.h>
@@ -19,7 +22,8 @@
 #include "statistic.hpp"
 #include "uuid.hpp"
 
-extern "C" void trampoline(uint64_t *result_x0, void *machine_code_address_x1);
+extern "C" void trampoline(int64_t *result, void *machine_code_address,
+                           uint64_t repeat_count);
 
 static size_t get_page_size() {
   static size_t const page_size = static_cast<size_t>(sysconf(_SC_PAGE_SIZE));
@@ -68,21 +72,66 @@ public:
 
 } // namespace
 
-static uint64_t execute_impl(MMapRAII const &mmap_raii) {
-  uint64_t result = 0;
+static int64_t execute_impl(MMapRAII const &mmap_raii, uint64_t repeat_count) {
+  int64_t result = 0;
   spdlog::debug("[executor] execution with result address {} and exec_mem {}",
                 (void *)&result, mmap_raii.get_exec_mem());
 
-  trampoline(&result, mmap_raii.get_exec_mem());
-  trampoline(&result, mmap_raii.get_exec_mem());
+  trampoline(&result, mmap_raii.get_exec_mem(), repeat_count);
+  trampoline(&result, mmap_raii.get_exec_mem(), repeat_count);
 
   // yield once to avoid time out
   std::this_thread::yield();
-  trampoline(&result, mmap_raii.get_exec_mem());
+  trampoline(&result, mmap_raii.get_exec_mem(), repeat_count);
   return result;
 }
 
+class RepeatCount {
+  uint64_t count_ = 1U;
+  MMapRAII *baseline_mmap_raii_ = nullptr;
+  std::vector<MMapRAII *> pending_measure_repeat_cout{};
+
+  void increase_count() { count_ *= 2U; }
+
+public:
+  uint64_t get_count() const {
+    assert(!pending_measure_repeat_cout.empty());
+    return count_;
+  }
+
+  void set_baseline_mmap_raii(MMapRAII *baseline_mmap_raii) {
+    baseline_mmap_raii_ = baseline_mmap_raii;
+    for (MMapRAII *mmap_raii : pending_measure_repeat_cout) {
+      while (true) {
+        int64_t const baseline_result =
+            execute_impl(*baseline_mmap_raii, count_);
+        int64_t const result =
+            execute_impl(*mmap_raii, count_) - baseline_result;
+        if (result >= 100)
+          break;
+        increase_count();
+      }
+    }
+  }
+
+  void add_case(MMapRAII *mmap_raii) {
+    if (baseline_mmap_raii_ == nullptr) {
+      pending_measure_repeat_cout.push_back(mmap_raii);
+      return;
+    }
+    while (true) {
+      int64_t const baseline_result =
+          execute_impl(*baseline_mmap_raii_, count_);
+      int64_t const result = execute_impl(*mmap_raii, count_) - baseline_result;
+      if (result >= 100)
+        break;
+      increase_count();
+    }
+  }
+};
+
 void Executor::start() {
+  RepeatCount repeat_counter{};
   std::map<UUID, std::unique_ptr<MMapRAII>> machine_codes;
   while (true) {
     // maintain task
@@ -93,6 +142,13 @@ void Executor::start() {
                    machine_code->uuid_);
       std::unique_ptr<MMapRAII> mmap_raii =
           std::make_unique<MMapRAII>(*machine_code);
+
+      if (machine_code->uuid_ == UUIDUtils::control_group_uuid) {
+        repeat_counter.set_baseline_mmap_raii(mmap_raii.get());
+      } else {
+        repeat_counter.add_case(mmap_raii.get());
+      }
+
       machine_codes[machine_code->uuid_] = std::move(mmap_raii);
     }
     std::deque<std::unique_ptr<UUID>> cancel_uuids = cancel_queue_.pop_all();
@@ -120,12 +176,14 @@ void Executor::start() {
         machine_codes.at(UUIDUtils::control_group_uuid).get();
 
     std::deque<std::unique_ptr<Sample>> samples;
+    uint64_t const repeat_count = repeat_counter.get_count();
 
     // execute
-    uint64_t const baseline = execute_impl(*baseline_mmap_raii);
+    int64_t const baseline = execute_impl(*baseline_mmap_raii, repeat_count);
     for (size_t i = 0; i < 4; i++) {
       for (auto &[uuid, mmap_raii_ptr] : entries) {
-        int64_t const result = execute_impl(*mmap_raii_ptr) - baseline;
+        int64_t const result =
+            execute_impl(*mmap_raii_ptr, repeat_count) - baseline;
         samples.push_back(std::unique_ptr<Sample>{
             new Sample{.uuid_ = uuid, .cpu_cycle_ = result}});
       }

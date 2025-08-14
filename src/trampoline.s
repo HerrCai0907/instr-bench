@@ -3,6 +3,7 @@
 _trampoline:
   ;; x0 result ptr
   ;; x1 target address
+  ;; x2 repeat count
   stp     x29, x30, [sp, #-64]!
   stp     x19, x20, [sp, #16]
   stp     x21, x22, [sp, #32]
@@ -12,7 +13,7 @@ _trampoline:
   mov     x19, x0
   mov     x20, x1
   ;; x21 counter
-  mov     x21, 128
+  mov     x21, x2
   ;; x22 start time
   mrs     x22, cntpct_el0
 
