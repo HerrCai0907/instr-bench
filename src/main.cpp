@@ -48,21 +48,21 @@ int main() {
   }};
 
   add_bench_target(R"(
-    add	    x0, x0, x1
-    add	    x0, x0, x3
-    add	    x0, x0, x4
+    ldr     xzr, [x0]
+    str     x1,  [x0]
   )",
                    machine_code_queue);
   add_bench_target(R"(
-    add	    x9, x0, x1
-    add	    x8, x2, x3
-    add	    x0, x9, x8
+    str     x1,  [x0]
   )",
                    machine_code_queue);
   add_bench_target(R"(
-    add	    x9, x0, x1
-    add	    x0, x2, x3
-    add	    x0, x0, x8
+    str     x1,  [x0]
+  )",
+                   machine_code_queue);
+  add_bench_target(R"(
+    ldr     xzr, [x0]
+    str     x1,  [x0]
   )",
                    machine_code_queue);
 

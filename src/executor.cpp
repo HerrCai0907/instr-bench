@@ -61,6 +61,16 @@ public:
 
 } // namespace
 
+static uint64_t execute_impl(MMapRAII const &mmap_raii) {
+  uint64_t result = 0;
+  spdlog::debug("[executor] execution with result address {} and exec_mem {}",
+                (void *)&result, mmap_raii.get_exec_mem());
+  // yield once to avoid time out
+  std::this_thread::yield();
+  trampoline(&result, mmap_raii.get_exec_mem());
+  return result;
+}
+
 void Executor::start() {
   std::map<MachineCode::UUID, std::unique_ptr<MMapRAII>> machine_codes;
   while (true) {
@@ -70,8 +80,9 @@ void Executor::start() {
     for (auto &machine_code : new_machine_codes) {
       spdlog::info("[executor] add machine code with uuid {}",
                    machine_code->getUUID());
-      machine_codes[machine_code->getUUID()] =
+      std::unique_ptr<MMapRAII> mmap_raii =
           std::make_unique<MMapRAII>(*machine_code);
+      machine_codes[machine_code->getUUID()] = std::move(mmap_raii);
     }
     std::deque<std::unique_ptr<MachineCode::UUID>> cancel_uuids =
         cancel_queue_.pop_all();
@@ -81,13 +92,9 @@ void Executor::start() {
     }
     // execute
     for (auto &[uuid, mmap_raii] : machine_codes) {
-      uint64_t result = 0;
-      spdlog::debug(
-          "[executor] execution with result address {} and exec_mem {}",
-          (void *)&result, mmap_raii->get_exec_mem());
-      // yield once to avoid time out
-      std::this_thread::yield();
-      trampoline(&result, mmap_raii->get_exec_mem());
+      execute_impl(*mmap_raii);
+      execute_impl(*mmap_raii);
+      uint64_t const result = execute_impl(*mmap_raii);
       statistic_queue_.push(std::unique_ptr<Sample>{
           new Sample{.uuid_ = uuid, .cpu_cycle_ = result}});
     }
@@ -95,32 +102,3 @@ void Executor::start() {
 }
 
 } // namespace ib::rt
-
-void ib::rt::execute(MachineCode const &machineCode) {
-  // Create executable memory mapping
-  size_t const code_size = round_to_page_size(machineCode.size());
-  spdlog::info("mmap {} with RW permission", code_size);
-  void *exec_mem = mmap(nullptr, code_size, PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (exec_mem == MAP_FAILED) {
-    spdlog::error("Failed to allocate executable memory");
-    std::abort();
-  }
-  std::memcpy(exec_mem, machineCode.data(), code_size);
-
-  spdlog::info("mprotect {} with RE permission", code_size);
-  mprotect(exec_mem, code_size, PROT_READ | PROT_EXEC);
-
-  uint64_t result = 0;
-  spdlog::info("execution with result address {} and exec_mem {}",
-               (void *)&result, exec_mem);
-  // yield once to avoid time out
-  std::this_thread::yield();
-  trampoline(&result, exec_mem);
-
-  Sample const statistic{.cpu_cycle_ = result};
-
-  spdlog::info("execution result: {}", statistic);
-
-  munmap(exec_mem, code_size);
-}

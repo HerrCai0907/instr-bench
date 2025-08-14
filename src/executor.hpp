@@ -6,8 +6,6 @@
 
 namespace ib::rt {
 
-void execute(MachineCode const &machineCode);
-
 class Executor {
   MultipleThreadQueue<MachineCode> &machine_code_queue_;
   MultipleThreadQueue<MachineCode::UUID> &cancel_queue_;
