@@ -1,12 +1,16 @@
+#include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
 #include <memory>
+#include <random>
 #include <spdlog/spdlog.h>
 #include <sys/mman.h>
 #include <thread>
 #include <unistd.h>
+#include <vector>
 
 #include "executor.hpp"
 #include "machine_code.hpp"
@@ -94,18 +98,29 @@ void Executor::start() {
       spdlog::info("[executor] remove machine code with uuid {}", *cancel_uuid);
       machine_codes.erase(*cancel_uuid);
     }
-    // execute
-    if (!machine_codes.contains(1U)) {
-      std::this_thread::yield();
+    // plan
+    if (!machine_codes.contains(UUIDUtils::control_group_uuid)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds{100});
       continue;
     }
-    std::unique_ptr<MMapRAII> const &baseline_mmap_raii =
-        machine_codes.at(UUIDUtils::control_group_uuid);
-    uint64_t const baseline = execute_impl(*baseline_mmap_raii);
-    for (auto &[uuid, mmap_raii] : machine_codes) {
+
+    std::vector<std::pair<UUID, MMapRAII const *>> entries;
+    for (auto const &[uuid, mmap_raii] : machine_codes) {
       if (uuid == UUIDUtils::control_group_uuid)
         continue;
-      int64_t const result = execute_impl(*mmap_raii) - baseline;
+      entries.emplace_back(uuid, mmap_raii.get());
+    }
+    std::random_device rd;
+    std::mt19937 rng{rd()};
+    std::shuffle(entries.begin(), entries.end(), rng);
+
+    MMapRAII const *baseline_mmap_raii =
+        machine_codes.at(UUIDUtils::control_group_uuid).get();
+
+    // execute
+    uint64_t const baseline = execute_impl(*baseline_mmap_raii);
+    for (auto &[uuid, mmap_raii_ptr] : entries) {
+      int64_t const result = execute_impl(*mmap_raii_ptr) - baseline;
       statistic_queue_.push(std::unique_ptr<Sample>{
           new Sample{.uuid_ = uuid, .cpu_cycle_ = result}});
     }

@@ -55,9 +55,6 @@ int main() {
     statistic.start();
   }};
 
-  add_bench_target(ib::UUIDUtils::control_group_uuid, R"()",
-                   machine_code_queue);
-
   // custom
   add_bench_target(R"(
     ldr     x1,  [x0]
@@ -99,6 +96,9 @@ int main() {
     )",
                    machine_code_queue);
 
+  // send control group, start execute
+  add_bench_target(ib::UUIDUtils::control_group_uuid, R"()",
+                   machine_code_queue);
   execute_thread.join();
   statistic_thread.join();
   return 0;
