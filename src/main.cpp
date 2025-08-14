@@ -57,43 +57,15 @@ int main() {
 
   // custom
   add_bench_target(R"(
-    ldr     x1,  [x0]
-    str     x1,  [x0]
-    ldr     x1,  [x0, #8]
-    str     x1,  [x0, #8]
-    ldr     x1,  [x0, #10]
-    str     x1,  [x0, #10]
-    ldr     x1,  [x0, #18]
-    str     x1,  [x0, #18]
-    ldr     x1,  [x0, #20]
-    str     x1,  [x0, #20]
-    )",
+    mov x8, x0
+    add x8, x8, #10
+    ldr x1, [x8]
+  )",
                    machine_code_queue);
   add_bench_target(R"(
-    ldr     x1,  [x0]
-    str     x1,  [x0]
-    ldr     x2,  [x0, #8]
-    str     x2,  [x0, #8]
-    ldr     x3,  [x0, #10]
-    str     x3,  [x0, #10]
-    ldr     x4,  [x0, #18]
-    str     x4,  [x0, #18]
-    ldr     x5,  [x0, #20]
-    str     x5,  [x0, #20]
-    )",
-                   machine_code_queue);
-  add_bench_target(R"(
-    ldr     x1,  [x0]
-    ldr     x2,  [x0, #8]
-    ldr     x3,  [x0, #10]
-    ldr     x4,  [x0, #18]
-    ldr     x5,  [x0, #20]
-    str     x1,  [x0]
-    str     x2,  [x0, #8]
-    str     x3,  [x0, #10]
-    str     x4,  [x0, #18]
-    str     x5,  [x0, #20]
-    )",
+    add x8, x0, #10
+    ldr x1, [x8]
+  )",
                    machine_code_queue);
 
   // send control group, start execute

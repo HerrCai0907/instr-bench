@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <deque>
 #include <map>
 #include <memory>
 #include <random>
@@ -10,6 +11,7 @@
 #include <sys/mman.h>
 #include <thread>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 #include "executor.hpp"
@@ -117,13 +119,19 @@ void Executor::start() {
     MMapRAII const *baseline_mmap_raii =
         machine_codes.at(UUIDUtils::control_group_uuid).get();
 
+    std::deque<std::unique_ptr<Sample>> samples;
+
     // execute
     uint64_t const baseline = execute_impl(*baseline_mmap_raii);
-    for (auto &[uuid, mmap_raii_ptr] : entries) {
-      int64_t const result = execute_impl(*mmap_raii_ptr) - baseline;
-      statistic_queue_.push(std::unique_ptr<Sample>{
-          new Sample{.uuid_ = uuid, .cpu_cycle_ = result}});
+    for (size_t i = 0; i < 4; i++) {
+      for (auto &[uuid, mmap_raii_ptr] : entries) {
+        int64_t const result = execute_impl(*mmap_raii_ptr) - baseline;
+        samples.push_back(std::unique_ptr<Sample>{
+            new Sample{.uuid_ = uuid, .cpu_cycle_ = result}});
+      }
     }
+    // send
+    statistic_queue_.push_all(std::move(samples));
   }
 }
 

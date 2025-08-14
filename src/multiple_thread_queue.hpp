@@ -18,6 +18,15 @@ public:
     cv_.notify_all();
   }
 
+  void push_all(std::deque<std::unique_ptr<T>> tasks) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      tasks_.insert(tasks_.end(), std::make_move_iterator(tasks.begin()),
+                    std::make_move_iterator(tasks.end()));
+    }
+    cv_.notify_all();
+  }
+
   std::unique_ptr<T> pop() {
     std::unique_lock<std::mutex> lock(mutex_);
     cv_.wait(lock, [this] { return !tasks_.empty(); });
