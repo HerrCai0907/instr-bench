@@ -1,0 +1,11 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: "^<" # include library
+    Priority: -1
+  - Regex: '^"src/' # include from project root
+    Priority: 1
+  - Regex: '^"' # other
+    Priority: 0
