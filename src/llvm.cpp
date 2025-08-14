@@ -47,7 +47,6 @@ public:
 
   void emitInstruction(const MCInst &inst,
                        const MCSubtargetInfo &sub_target_info) override {
-    spdlog::info(__PRETTY_FUNCTION__);
     SmallVector<MCFixup, 4> Fixups;
     code_emitter_->encodeInstruction(inst, code_, Fixups, sub_target_info);
   }

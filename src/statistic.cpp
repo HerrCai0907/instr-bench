@@ -4,8 +4,8 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
-#include "machine_code.hpp"
 #include "statistic.hpp"
+#include "uuid.hpp"
 
 fmt::basic_appender<char>
 fmt::formatter<ib::rt::Sample>::format(const ib::rt::Sample &statistic,
@@ -47,7 +47,7 @@ class Stat {
   uint32_t n_ = 0U;
 
 public:
-  void update(uint64_t v) {
+  void update(int64_t v) {
     n_ += 1;
     const double delta = static_cast<double>(v) - mean_;
     mean_ += delta / n_;
@@ -85,7 +85,7 @@ namespace ib::rt {
 
 void Statistic::start() {
   std::chrono::seconds last_print_time;
-  std::map<MachineCode::UUID, Stat> stats;
+  std::map<UUID, Stat> stats;
   while (true) {
     {
       // update

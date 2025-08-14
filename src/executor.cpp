@@ -11,6 +11,7 @@
 #include "executor.hpp"
 #include "machine_code.hpp"
 #include "statistic.hpp"
+#include "uuid.hpp"
 
 extern "C" void trampoline(uint64_t *result_x0, void *machine_code_address_x1);
 
@@ -65,6 +66,10 @@ static uint64_t execute_impl(MMapRAII const &mmap_raii) {
   uint64_t result = 0;
   spdlog::debug("[executor] execution with result address {} and exec_mem {}",
                 (void *)&result, mmap_raii.get_exec_mem());
+
+  trampoline(&result, mmap_raii.get_exec_mem());
+  trampoline(&result, mmap_raii.get_exec_mem());
+
   // yield once to avoid time out
   std::this_thread::yield();
   trampoline(&result, mmap_raii.get_exec_mem());
@@ -72,29 +77,35 @@ static uint64_t execute_impl(MMapRAII const &mmap_raii) {
 }
 
 void Executor::start() {
-  std::map<MachineCode::UUID, std::unique_ptr<MMapRAII>> machine_codes;
+  std::map<UUID, std::unique_ptr<MMapRAII>> machine_codes;
   while (true) {
     // maintain task
     std::deque<std::unique_ptr<MachineCode>> new_machine_codes =
         machine_code_queue_.pop_all();
     for (auto &machine_code : new_machine_codes) {
       spdlog::info("[executor] add machine code with uuid {}",
-                   machine_code->getUUID());
+                   machine_code->uuid_);
       std::unique_ptr<MMapRAII> mmap_raii =
           std::make_unique<MMapRAII>(*machine_code);
-      machine_codes[machine_code->getUUID()] = std::move(mmap_raii);
+      machine_codes[machine_code->uuid_] = std::move(mmap_raii);
     }
-    std::deque<std::unique_ptr<MachineCode::UUID>> cancel_uuids =
-        cancel_queue_.pop_all();
+    std::deque<std::unique_ptr<UUID>> cancel_uuids = cancel_queue_.pop_all();
     for (auto &cancel_uuid : cancel_uuids) {
       spdlog::info("[executor] remove machine code with uuid {}", *cancel_uuid);
       machine_codes.erase(*cancel_uuid);
     }
     // execute
+    if (!machine_codes.contains(1U)) {
+      std::this_thread::yield();
+      continue;
+    }
+    std::unique_ptr<MMapRAII> const &baseline_mmap_raii =
+        machine_codes.at(UUIDUtils::control_group_uuid);
+    uint64_t const baseline = execute_impl(*baseline_mmap_raii);
     for (auto &[uuid, mmap_raii] : machine_codes) {
-      execute_impl(*mmap_raii);
-      execute_impl(*mmap_raii);
-      uint64_t const result = execute_impl(*mmap_raii);
+      if (uuid == UUIDUtils::control_group_uuid)
+        continue;
+      int64_t const result = execute_impl(*mmap_raii) - baseline;
       statistic_queue_.push(std::unique_ptr<Sample>{
           new Sample{.uuid_ = uuid, .cpu_cycle_ = result}});
     }

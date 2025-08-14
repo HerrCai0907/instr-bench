@@ -10,9 +10,10 @@
 #include "llvm.hpp"
 #include "machine_code.hpp"
 #include "statistic.hpp"
+#include "uuid.hpp"
 
 void add_bench_target(
-    std::string const &asm_str,
+    ib::UUID uuid, std::string const &asm_str,
     MultipleThreadQueue<ib::MachineCode> &machine_code_queue) {
   static std::string const asm_prefix = R"(
 	.section	__TEXT,__text,regular,pure_instructions
@@ -24,8 +25,15 @@ main:
   )";
   std::unique_ptr<ib::MachineCode> machine_code =
       ib::llvm::compile(asm_prefix + asm_str + asm_postfix);
+  machine_code->uuid_ = uuid;
   spdlog::info("machine code for \"{}\":\n{}", asm_str, *machine_code);
   machine_code_queue.push(std::move(machine_code));
+}
+
+void add_bench_target(
+    std::string const &asm_str,
+    MultipleThreadQueue<ib::MachineCode> &machine_code_queue) {
+  add_bench_target(ib::UUIDUtils::alloc(), asm_str, machine_code_queue);
 }
 
 int main() {
@@ -33,7 +41,7 @@ int main() {
   spdlog::cfg::load_env_levels();
 
   MultipleThreadQueue<ib::MachineCode> machine_code_queue;
-  MultipleThreadQueue<ib::MachineCode::UUID> cancel_queue;
+  MultipleThreadQueue<ib::UUID> cancel_queue;
   MultipleThreadQueue<ib::rt::Sample> statistic_queue;
 
   std::thread execute_thread{[&]() {
@@ -47,45 +55,47 @@ int main() {
     statistic.start();
   }};
 
-  add_bench_target(R"(
-    ldr     x1,  [x0]
-    str     x1,  [x0]
-    ldr     x1,  [x0]
-    str     x1,  [x0]
-    ldr     x1,  [x0]
-    str     x1,  [x0]
-    ldr     x1,  [x0]
-    str     x1,  [x0]
-    ldr     x1,  [x0]
-    str     x1,  [x0]
-    )",
+  add_bench_target(ib::UUIDUtils::control_group_uuid, R"()",
                    machine_code_queue);
 
+  // custom
   add_bench_target(R"(
     ldr     x1,  [x0]
     str     x1,  [x0]
-    ldr     x2,  [x0]
-    str     x2,  [x0]
-    ldr     x3,  [x0]
-    str     x3,  [x0]
-    ldr     x4,  [x0]
-    str     x4,  [x0]
-    ldr     x5,  [x0]
-    str     x5,  [x0]
+    ldr     x1,  [x0, #8]
+    str     x1,  [x0, #8]
+    ldr     x1,  [x0, #10]
+    str     x1,  [x0, #10]
+    ldr     x1,  [x0, #18]
+    str     x1,  [x0, #18]
+    ldr     x1,  [x0, #20]
+    str     x1,  [x0, #20]
     )",
                    machine_code_queue);
-
   add_bench_target(R"(
     ldr     x1,  [x0]
-    ldr     x2,  [x0]
-    ldr     x3,  [x0]
-    ldr     x4,  [x0]
-    ldr     x5,  [x0]
     str     x1,  [x0]
-    str     x2,  [x0]
-    str     x3,  [x0]
-    str     x4,  [x0]
-    str     x5,  [x0]
+    ldr     x2,  [x0, #8]
+    str     x2,  [x0, #8]
+    ldr     x3,  [x0, #10]
+    str     x3,  [x0, #10]
+    ldr     x4,  [x0, #18]
+    str     x4,  [x0, #18]
+    ldr     x5,  [x0, #20]
+    str     x5,  [x0, #20]
+    )",
+                   machine_code_queue);
+  add_bench_target(R"(
+    ldr     x1,  [x0]
+    ldr     x2,  [x0, #8]
+    ldr     x3,  [x0, #10]
+    ldr     x4,  [x0, #18]
+    ldr     x5,  [x0, #20]
+    str     x1,  [x0]
+    str     x2,  [x0, #8]
+    str     x3,  [x0, #10]
+    str     x4,  [x0, #18]
+    str     x5,  [x0, #20]
     )",
                    machine_code_queue);
 

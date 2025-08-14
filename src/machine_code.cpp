@@ -1,11 +1,7 @@
 #include "fmt/format.h"
 #include "machine_code.hpp"
 
-namespace ib {
-
-uint64_t MachineCode::uuid_generator_ = 0U;
-
-}
+namespace ib {}
 
 fmt::basic_appender<char>
 fmt::formatter<ib::MachineCode>::format(const ib::MachineCode &vec,

@@ -3,14 +3,14 @@
 #include <cstdint>
 #include <fmt/base.h>
 
-#include "machine_code.hpp"
 #include "multiple_thread_queue.hpp"
+#include "uuid.hpp"
 
 namespace ib::rt {
 
 struct Sample {
-  MachineCode::UUID uuid_;
-  uint64_t cpu_cycle_;
+  UUID uuid_;
+  int64_t cpu_cycle_;
 };
 
 class Statistic {
