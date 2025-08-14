@@ -105,9 +105,10 @@ void Statistic::start() {
       if (current_time - last_print_time >= std::chrono::seconds{1}) {
         spdlog::info("=======STAT========");
         for (auto const &[uuid, stat] : stats) {
-          spdlog::info("statistics<{}>:\n - average cpu cycle: {}\n - "
-                       "confidence interval: {}",
-                       uuid, stat.avr(), stat.confidence_interval());
+          spdlog::info(
+              "statistics<{}>:\n - average cpu cycle: \033[31m{}\033[0m\n - "
+              "confidence interval: \033[33m{}\033[0m",
+              uuid, stat.avr(), stat.confidence_interval());
         }
         spdlog::info("\n");
         last_print_time = current_time;
