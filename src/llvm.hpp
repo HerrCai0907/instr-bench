@@ -1,11 +1,13 @@
-#include <cstdint>
+#pragma once
+
 #include <string>
-#include <vector>
+
+#include "machine_code.hpp"
 
 namespace ib::llvm {
 
 void init();
 
-std::vector<uint8_t> compile(const std::string &asmStr);
+MachineCode compile(const std::string &asmStr);
 
 } // namespace ib::llvm

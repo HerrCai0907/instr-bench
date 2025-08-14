@@ -2,7 +2,6 @@
 #include <optional>
 #include <spdlog/spdlog.h>
 #include <string>
-#include <vector>
 
 #include "llvm.hpp"
 #include "llvm/CodeGen/AsmPrinter.h"
@@ -30,6 +29,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/TargetParser/Host.h"
+#include "machine_code.hpp"
 
 using namespace llvm;
 
@@ -93,8 +93,7 @@ void ib::llvm::init() {
   spdlog::info("LLVM initialized successfully!");
 }
 
-std::vector<uint8_t> ib::llvm::compile(const std::string &asmStr) {
-  std::vector<uint8_t> result;
+ib::MachineCode ib::llvm::compile(const std::string &asmStr) {
   const Target *target = getTarget();
   Triple triple{sys::getDefaultTargetTriple()};
 
@@ -161,5 +160,5 @@ std::vector<uint8_t> ib::llvm::compile(const std::string &asmStr) {
 
   int Res = asm_parser->Run(true);
 
-  return {ib_streamer->code_.begin(), ib_streamer->code_.end()};
+  return ib::MachineCode{ib_streamer->code_.begin(), ib_streamer->code_.end()};
 }
