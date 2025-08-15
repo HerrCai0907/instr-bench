@@ -32,7 +32,7 @@ struct TDigest {
   double compression_;
   double maxWeight_;
 
-  explicit TDigest(double compression = 100.0, double maxWeight = 100.0)
+  explicit TDigest(double compression = 10000.0, double maxWeight = 100.0)
       : compression_(compression), maxWeight_(maxWeight) {}
 
   void add(double value) {
@@ -51,9 +51,12 @@ struct TDigest {
       // Merge with the closest centroid
       it->weight += 1.0;
     } else {
-      // Create a new centroid
-      centroids_.emplace_back(value, 1.0);
-      compressIfNecessary();
+      // Insert in sorted order
+      auto insertPos = std::upper_bound(
+          centroids_.begin(), centroids_.end(), value,
+          [](double val, const Centroid &c) { return val < c.mean; });
+      centroids_.insert(insertPos, Centroid(value, 1.0));
+      // compressIfNecessary();
     }
   }
   void compressIfNecessary() {
@@ -220,19 +223,17 @@ void drawHistogram(TDigest const &td, Range range) {
   std::vector<double> data{};
   constexpr size_t RowCount = 40;
   constexpr size_t ColCount = 200;
+  std::string data_str;
   for (size_t i = 0; i < ColCount; i++) {
     double_t r = static_cast<double>(i) / static_cast<double>(ColCount);
     double const v =
         range.lower_bound + r * (range.upper_bound - range.lower_bound);
-    data.push_back(td.getRatio(v));
-  }
-  std::string data_str;
-  for (size_t i = 0; i < data.size(); ++i) {
     if (i > 0)
       data_str += ", ";
-    data_str += std::to_string(data[i]);
+    data_str += std::to_string(td.getRatio(v));
+    data.push_back(std::log10(td.getRatio(v) + 0.0000001));
   }
-  spdlog::debug("histogram data: {}", data_str);
+  spdlog::info("histogram data: {}", data_str);
   double_t max_val = *std::max_element(data.begin(), data.end());
   double_t min_val = *std::min_element(data.begin(), data.end());
   double scale = static_cast<double>(RowCount) / (max_val - min_val);
