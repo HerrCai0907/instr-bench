@@ -2,11 +2,15 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <iomanip>
+#include <ios>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <random>
 #include <spdlog/spdlog.h>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #include "statistic.hpp"
@@ -223,17 +227,21 @@ void drawHistogram(TDigest const &td, Range range) {
   std::vector<double> data{};
   constexpr size_t RowCount = 40;
   constexpr size_t ColCount = 200;
-  std::string data_str;
+  std::stringstream data_str;
   for (size_t i = 0; i < ColCount; i++) {
     double_t r = static_cast<double>(i) / static_cast<double>(ColCount);
     double const v =
         range.lower_bound + r * (range.upper_bound - range.lower_bound);
-    if (i > 0)
-      data_str += ", ";
-    data_str += std::to_string(td.getRatio(v));
-    data.push_back(std::log10(td.getRatio(v) + 0.0000001));
+    double_t const ratio = td.getRatio(v);
+    if (i % 5 == 0) {
+      if (i > 0)
+        data_str << ", ";
+      data_str << std::setiosflags(std::ios::fixed) << std::setprecision(2) << v
+               << ":" << (ratio * 100);
+    }
+    data.push_back(std::log10(ratio + 1e-9));
   }
-  spdlog::info("histogram data: {}", data_str);
+  spdlog::info("histogram data: {}", data_str.str());
   double_t max_val = *std::max_element(data.begin(), data.end());
   double_t min_val = *std::min_element(data.begin(), data.end());
   double scale = static_cast<double>(RowCount) / (max_val - min_val);
