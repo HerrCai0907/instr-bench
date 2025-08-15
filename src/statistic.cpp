@@ -1,8 +1,12 @@
 #include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <iostream>
 #include <map>
 #include <memory>
+#include <random>
 #include <spdlog/spdlog.h>
+#include <vector>
 
 #include "statistic.hpp"
 #include "uuid.hpp"
@@ -16,42 +20,134 @@ fmt::formatter<ib::rt::Sample>::format(const ib::rt::Sample &statistic,
 namespace {
 
 struct Centroid {
-  uint64_t sum_ = 0U;
-  uint32_t count_ = 0U;
+  double mean;
+  double weight; // Number of data points in this centroid
 
-  void insert(uint64_t value) {
-    sum_ += value;
-    count_ += 1;
-  }
-
-  uint64_t mean() const { return count_ > 0 ? sum_ / count_ : 0; }
+  Centroid(double m, double w) : mean(m), weight(w) {}
 };
 
 struct TDigest {
-  void insert(uint64_t value) {}
+  std::vector<Centroid> centroids;
+  double compression;
+  double maxWeight;
 
-  uint64_t quantile(double q) const {
-    // Compute the q-th quantile
-    return 0;
+  explicit TDigest(double compression = 100.0) : compression(compression) {
+    maxWeight = 1.0 / compression;
   }
+  void add(double value) {
+    if (centroids.empty()) {
+      centroids.emplace_back(value, 1.0);
+      return;
+    }
+    // Find the closest centroid to the new value
+    auto it = std::min_element(centroids.begin(), centroids.end(),
+                               [value](const Centroid &a, const Centroid &b) {
+                                 return std::abs(a.mean - value) <
+                                        std::abs(b.mean - value);
+                               });
+
+    if (std::abs(it->mean - value) < 1e-9) {
+      // Merge with the closest centroid
+      it->weight += 1.0;
+    } else {
+      // Create a new centroid
+      centroids.emplace_back(value, 1.0);
+      compressIfNecessary();
+    }
+  }
+
+  // Compress centroids if necessary
+  void compressIfNecessary() {
+    if (centroids.size() <= static_cast<size_t>(compression))
+      return;
+
+    // Sort centroids by mean
+    std::sort(
+        centroids.begin(), centroids.end(),
+        [](const Centroid &a, const Centroid &b) { return a.mean < b.mean; });
+    std::vector<Centroid> newCentroids;
+    for (size_t i = 0; i < centroids.size(); ++i) {
+      if (newCentroids.empty()) {
+        newCentroids.push_back(centroids[i]);
+      } else {
+        Centroid &last = newCentroids.back();
+        double combinedWeight = last.weight + centroids[i].weight;
+        if (combinedWeight <= maxWeight) {
+          // Merge if within maxWeight
+          last.mean = (last.mean * last.weight +
+                       centroids[i].mean * centroids[i].weight) /
+                      combinedWeight;
+          last.weight = combinedWeight;
+        } else {
+          newCentroids.push_back(centroids[i]);
+        }
+      }
+    }
+
+    centroids = std::move(newCentroids);
+  }
+
+  // Estimate the quantile (0.0 <= q <= 1.0)
+  double quantile(double q) const {
+    if (centroids.empty())
+      return std::numeric_limits<double>::quiet_NaN();
+    if (q <= 0.0)
+      return centroids[0].mean;
+    if (q >= 1.0)
+      return centroids.back().mean;
+
+    // Compute cumulative weights
+    std::vector<std::pair<double, double>> cumulative;
+    double totalWeight = 0.0;
+    for (const auto &c : centroids) {
+      totalWeight += c.weight;
+      cumulative.emplace_back(totalWeight, c.mean);
+    }
+
+    // Find the segment containing the quantile
+    double targetWeight = q * totalWeight;
+    auto it = std::upper_bound(
+        cumulative.begin(), cumulative.end(), std::make_pair(targetWeight, 0.0),
+        [](const std::pair<double, double> &a,
+           const std::pair<double, double> &b) { return a.first < b.first; });
+
+    if (it == cumulative.begin())
+      return centroids[0].mean;
+    if (it == cumulative.end())
+      return centroids.back().mean;
+
+    auto left = it - 1;
+    auto right = it;
+    double leftWeight = left->first;
+    double rightWeight = right->first;
+    double leftMean = left->second;
+    double rightMean = right->second;
+
+    // Linear interpolation
+    double fraction = (targetWeight - leftWeight) / (rightWeight - leftWeight);
+    return leftMean + fraction * (rightMean - leftMean);
+  }
+
+  // Get all centroids (for debugging/testing)
+  const std::vector<Centroid> &getCentroids() const { return centroids; }
 };
 
 struct ConfidenceInterval {
-  double lower_bound = 0.0;
-  double upper_bound = 0.0;
+  double_t lower_bound = 0.0;
+  double_t upper_bound = 0.0;
 };
 
 class Stat {
-  double mean_ = 0U;
-  double m2_ = 0U;
+  double_t mean_ = 0U;
+  double_t m2_ = 0U;
   uint32_t n_ = 0U;
 
 public:
-  void update(int64_t v) {
+  void update(double_t v) {
     n_ += 1;
-    const double delta = static_cast<double>(v) - mean_;
+    const double_t delta = v - mean_;
     mean_ += delta / n_;
-    const double delta2 = static_cast<double>(v) - mean_;
+    const double_t delta2 = v - mean_;
     m2_ += delta * delta2;
   }
 
@@ -83,18 +179,50 @@ template <> struct fmt::formatter<ConfidenceInterval> {
 
 namespace ib::rt {
 
+void drawHistogram(TDigest const &td) {
+  if (td.centroids.empty())
+    return;
+  std::vector<double> data{};
+  for (size_t i = 0; i < 100; i++) {
+    data.push_back(td.quantile(static_cast<double>(i) / 100.0));
+  }
+  constexpr size_t maxBars = 1000;
+  double_t max_val = *std::max_element(data.begin(), data.end());
+  double scale = static_cast<double>(maxBars) / max_val;
+  for (int row = maxBars; row > 0; --row) {
+    std::cout << "| ";
+    for (size_t height : data) {
+      if (static_cast<double>(height) * scale >= row) {
+        std::cout << "* ";
+      } else {
+        std::cout << "  ";
+      }
+    }
+    std::cout << "|" << std::endl;
+  }
+  std::cout << "+ ";
+  for (size_t i = 0; i < data.size(); ++i) {
+    std::cout << "- ";
+  }
+  std::cout << "+" << std::endl;
+}
+
 void Statistic::start() {
   std::chrono::seconds last_print_time;
   std::map<UUID, Stat> stats;
+  std::map<UUID, TDigest> tdigests;
+  std::vector<size_t> data{20};
   while (true) {
     {
       // update
       std::unique_ptr<Sample> sample = statistic_queue_.pop();
       if (!stats.contains(sample->uuid_)) {
         stats.emplace(sample->uuid_, Stat{});
+        tdigests.emplace(sample->uuid_, TDigest{});
       }
       Stat &stat = stats.at(sample->uuid_);
       stat.update(sample->cpu_cycle_);
+      tdigests.at(sample->uuid_).add(sample->cpu_cycle_);
     }
     {
       // print
@@ -103,6 +231,7 @@ void Statistic::start() {
               std::chrono::steady_clock::now().time_since_epoch());
 
       if (current_time - last_print_time >= std::chrono::seconds{1}) {
+        spdlog::info("\x1b[2J\x1b[H");
         spdlog::info("=======STAT========");
         for (auto const &[uuid, stat] : stats) {
           spdlog::info(
@@ -112,6 +241,7 @@ void Statistic::start() {
         }
         spdlog::info("\n");
         last_print_time = current_time;
+        drawHistogram(tdigests.begin()->second);
       }
     }
   }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstdint>
+#include <cmath>
 #include <fmt/base.h>
 
 #include "multiple_thread_queue.hpp"
@@ -10,7 +10,7 @@ namespace ib::rt {
 
 struct Sample {
   UUID uuid_;
-  int64_t cpu_cycle_;
+  double_t cpu_cycle_;
 };
 
 class Statistic {

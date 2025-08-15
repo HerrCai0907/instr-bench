@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -184,8 +185,10 @@ void Executor::start() {
       for (auto &[uuid, mmap_raii_ptr] : entries) {
         int64_t const result =
             execute_impl(*mmap_raii_ptr, repeat_count) - baseline;
+        double_t const cpu_cycle =
+            static_cast<double_t>(result) / static_cast<double_t>(repeat_count);
         samples.push_back(std::unique_ptr<Sample>{
-            new Sample{.uuid_ = uuid, .cpu_cycle_ = result}});
+            new Sample{.uuid_ = uuid, .cpu_cycle_ = cpu_cycle}});
       }
     }
     // send
