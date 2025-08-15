@@ -22,7 +22,7 @@ ExternalProject_Add(
 )
 
 set(LLVM_DIR ${LLVM_BINARY_DIR}/install/lib/cmake/llvm)
-find_package(LLVM REQUIRED CONFIG)
+find_package(LLVM REQUIRED PATHS ${LLVM_DIR} NO_DEFAULT_PATH)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
@@ -44,6 +44,6 @@ ExternalProject_Add(
 
 set(SPDLOG_DIR ${CMAKE_BINARY_DIR}/third_party/spdlog-build/install/lib/cmake/spdlog)
 list(PREPEND CMAKE_PREFIX_PATH ${SPDLOG_DIR})
-find_package(spdlog REQUIRED CONFIG)
+find_package(spdlog REQUIRED PATHS ${LLVM_DIR} NO_DEFAULT_PATH)
 
 add_subdirectory(src)
