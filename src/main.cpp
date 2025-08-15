@@ -58,23 +58,12 @@ int main() {
   // custom
   add_bench_target(R"(
     mov x8, x0
-    add x8, x8, #10
+    add x8, x8, #1024
     ldr x1, [x8]
   )",
                    machine_code_queue);
   add_bench_target(R"(
-    add x8, x0, #10
-    ldr x1, [x8]
-  )",
-                   machine_code_queue);
-  add_bench_target(R"(
-    add x8, x0, #10
-    ldr x1, [x8]
-  )",
-                   machine_code_queue);
-  add_bench_target(R"(
-    mov x8, x0
-    add x8, x8, #10
+    add x8, x0, #1024
     ldr x1, [x8]
   )",
                    machine_code_queue);
